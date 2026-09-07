@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار - {{ name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+<div class="container">
+    <div class="card quiz-card">
+
+        <div class="quiz-header">
+            <div>
+                <div class="player">👤 {{ name }}</div>
+                <div class="muted">اختبار من {{ questions|length }} سؤالًا</div>
+            </div>
+
+            <div class="timer" id="timer" aria-live="polite">
+                {{ "%02d"|format(time_minutes) }}:00
+            </div>
+        </div>
+
+        <div class="progress-area">
+            <div class="progress-text">
+                <span>السؤال <strong id="current-number">1</strong> من {{ questions|length }}</span>
+                <span id="answered-count">0/{{ questions|length }} مجاب</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+        </div>
+
+        <form method="post" action="{{ url_for('quiz') }}" id="quiz-form">
+            <input type="hidden" name="name" value="{{ name }}">
+            <input type="hidden" name="question_ids"
+                   value="{% for q in questions %}{{ q.id }}{% if not loop.last %},{% endif %}{% endfor %}">
+
+            {% for q in questions %}
+            <section class="question-slide {% if not loop.first %}hidden{% endif %}"
+                     data-index="{{ loop.index0 }}"
+                     data-id="{{ q.id }}">
+
+                <div class="question-title">السؤال {{ loop.index }}</div>
+
+                <!-- The question image is the visual rendering from the original PDF. -->
+                <div class="question-image-wrap">
+                    <img class="question-image"
+                         src="{{ url_for('static', filename=q.image) }}"
+                         alt="السؤال {{ loop.index }} من ملف PDF">
+                </div>
+
+                <div class="answer-grid">
+                    {% for letter in ['A', 'B', 'C', 'D'] %}
+                    <label class="answer">
+                        <input type="radio"
+                               name="q{{ q.id }}"
+                               value="{{ letter }}">
+                        <span>{{ letter }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endfor %}
+
+            <div class="quiz-navigation">
+                <button type="button" class="secondary" id="prev-btn" disabled>
+                    السابق
+                </button>
+
+                <button type="button" id="next-btn">
+                    التالي
+                </button>
+
+                <button type="submit" id="finish-btn" class="finish hidden">
+                    إنهاء الاختبار 🏆
+                </button>
+            </div>
+
+            <div class="question-dots" id="question-dots">
+                {% for q in questions %}
+                <button type="button"
+                        class="dot {% if loop.first %}active{% endif %}"
+                        data-go="{{ loop.index0 }}"
+                        aria-label="السؤال {{ loop.index }}">
+                    {{ loop.index }}
+                </button>
+                {% endfor %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+(() => {
+    const slides = [...document.querySelectorAll(".question-slide")];
+    const dots = [...document.querySelectorAll(".dot")];
+    const prevBtn = document.getElementById("prev-btn");
+    const nextBtn = document.getElementById("next-btn");
+    const finishBtn = document.getElementById("finish-btn");
+    const currentNumber = document.getElementById("current-number");
+    const progressBar = document.getElementById("progress-bar");
+    const answeredCount = document.getElementById("answered-count");
+    const timerElement = document.getElementById("timer");
+    const form = document.getElementById("quiz-form");
+
+    let current = 0;
+    let remaining = {{ time_minutes }} * 60;
+    let finished = false;
+
+    function updateAnswered() {
+        let answered = 0;
+        slides.forEach(slide => {
+            if (slide.querySelector("input[type=radio]:checked")) answered++;
+        });
+        answeredCount.textContent = `${answered}/${slides.length} مجاب`;
+        dots.forEach(dot => {
+            const i = Number(dot.dataset.go);
+            const input = slides[i].querySelector("input[type=radio]:checked");
+            dot.classList.toggle("answered", !!input);
+        });
+    }
+
+    function show(index) {
+        current = Math.max(0, Math.min(index, slides.length - 1));
+
+        slides.forEach((slide, i) => {
+            slide.classList.toggle("hidden", i !== current);
+        });
+
+        dots.forEach((dot, i) => {
+            dot.classList.toggle("active", i === current);
+        });
+
+        currentNumber.textContent = current + 1;
+        progressBar.style.width = `${((current + 1) / slides.length) * 100}%`;
+
+        prevBtn.disabled = current === 0;
+
+        if (current === slides.length - 1) {
+            nextBtn.classList.add("hidden");
+            finishBtn.classList.remove("hidden");
+        } else {
+            nextBtn.classList.remove("hidden");
+            finishBtn.classList.add("hidden");
+        }
+
+        updateAnswered();
+        window.scrollTo({top: 0, behavior: "smooth"});
+    }
+
+    function updateTimer() {
+        const min = Math.floor(remaining / 60);
+        const sec = remaining % 60;
+        timerElement.textContent =
+            `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+
+        timerElement.classList.toggle("warning", remaining <= 60);
+    }
+
+    function submitQuiz() {
+        if (finished) return;
+        finished = true;
+        form.submit();
+    }
+
+    nextBtn.addEventListener("click", () => {
+        const selected = slides[current].querySelector("input[type=radio]:checked");
+        if (!selected) {
+            alert("المرجو اختيار إجابة قبل الانتقال إلى السؤال التالي.");
+            return;
+        }
+        show(current + 1);
+    });
+
+    prevBtn.addEventListener("click", () => show(current - 1));
+
+    finishBtn.addEventListener("click", (e) => {
+        const unanswered = slides.filter(
+            slide => !slide.querySelector("input[type=radio]:checked")
+        ).length;
+
+        if (unanswered > 0) {
+            e.preventDefault();
+            const ok = confirm(
+                `لديك ${unanswered} سؤال غير مجاب عنه. هل تريد إنهاء الاختبار؟`
+            );
+            if (!ok) return;
+        }
+
+        submitQuiz();
+    });
+
+    dots.forEach(dot => {
+        dot.addEventListener("click", () => show(Number(dot.dataset.go)));
+    });
+
+    form.addEventListener("change", updateAnswered);
+
+    const timer = setInterval(() => {
+        if (finished) {
+            clearInterval(timer);
+            return;
+        }
+
+        remaining--;
+        updateTimer();
+
+        if (remaining <= 0) {
+            clearInterval(timer);
+            alert("انتهى الوقت! سيتم إرسال الاختبار الآن.");
+            submitQuiz();
+        }
+    }, 1000);
+
+    updateTimer();
+    updateAnswered();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>النتيجة</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <div class="container">
+
+        <!-- النتيجة -->
+        <div class="card result">
+
+            <div class="emoji">🎉</div>
+
+            <h1>نتيجة الاختبار</h1>
+
+            <h2>{{ name }}</h2>
+
+            <div class="score">
+                {{ score }} / {{ total }}
+            </div>
+
+            <p class="percentage">
+                {{ percentage }} %
+            </p>
+
+            {% if percentage >= 80 %}
+
+            <p class="message">
+                ممتاز! 🔥
+            </p>
+
+            {% elif percentage >= 50 %}
+
+            <p class="message">
+                عمل جيد! 👍
+            </p>
+
+            {% else %}
+
+            <p class="message">
+                واصل التدريب 💪
+            </p>
+
+            {% endif %}
+
+            <a class="button secondary" href="{{ url_for('index') }}">
+                إعادة الاختبار
+            </a>
+
+        </div>
+
+
+        <!-- مراجعة الإجابات -->
+        {% if questions %}
+
+        <div class="card review-card">
+
+            <h2>مراجعة الإجابات</h2>
+
+            <p class="muted">
+                الإجابة الصحيحة موضحة لكل سؤال.
+            </p>
+
+
+            {% for q in questions %}
+
+            {% set user_answer = answers.get(q["id"]|string, "") %}
+
+            <div class="review-item">
+
+                <div class="review-title">
+                    السؤال {{ loop.index }}
+                </div>
+
+
+                <!-- صورة السؤال -->
+                <img class="question-image" src="{{ url_for('static', filename=q['image']) }}"
+                    alt="السؤال {{ loop.index }}">
+
+
+                <!-- الإجابة -->
+                <div class="review-answer">
+
+                    {% if user_answer == q["answer"] %}
+
+                    <span class="correct">
+                        ✓ إجابتك: {{ user_answer }} — صحيحة
+                    </span>
+
+                    {% else %}
+
+                    <span class="wrong">
+                        ✗ إجابتك:
+                        {{ user_answer if user_answer else "بدون إجابة" }}
+                    </span>
+
+                    <span class="correct">
+                        ✓ الإجابة الصحيحة:
+                        {{ q["answer"] }}
+                    </span>
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+            {% endfor %}
+
+        </div>
+
+        {% endif %}
+
+    </div>
+
+</body>
+
+</html>
